@@ -1,1 +1,139 @@
 # Dziennik-MDP-Jamielnik-2
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Dziennik MDP Jamielnik</title>
+<style>
+body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px; }
+h2 { text-align: center; }
+#controls { text-align: center; margin-bottom: 10px; }
+button { margin: 5px; padding: 6px 12px; font-size: 14px; }
+table { border-collapse: collapse; width: 100%; max-width: 1200px; margin: 0 auto; background: #fff; }
+th, td { border: 1px solid #aaa; padding: 8px; text-align: center; }
+th { background-color: #eee; position: sticky; top: 0; }
+.O { background-color: #c2f0c2; cursor: pointer; }
+.N { background-color: #f0c2c2; cursor: pointer; }
+td.clickable { cursor: pointer; }
+input.name { width: 160px; padding: 4px; }
+</style>
+</head>
+<body>
+
+<h2>Dziennik MDP Jamielnik</h2>
+
+<div id="controls">
+  <button id="loginBtn">Zaloguj do edycji</button>
+  <button id="addMeeting" disabled>Dodaj spotkanie</button>
+  <button id="exportCSV" disabled>Eksportuj CSV</button>
+</div>
+
+<table id="attendance">
+  <tr>
+    <th>Imię i Nazwisko</th>
+    <th>Frekwencja %</th>
+  </tr>
+</table>
+
+<script>
+const table = document.getElementById('attendance');
+const maxPeople = 50;
+let editMode = false;
+const password = "prezes";
+
+// Wczytaj dane z localStorage
+let storedData = JSON.parse(localStorage.getItem('attendanceData')) || [];
+
+// Funkcja aktualizująca frekwencję
+function updateAttendance(row){
+  let total = 0;
+  let present = 0;
+  for(let i=2;i<row.cells.length;i++){
+    const val=row.cells[i].textContent;
+    if(val==='O'||val==='N'){ total++; if(val==='O') present++; }
+  }
+  row.cells[1].textContent = total?Math.round(present/total*100)+'%':'0%';
+}
+
+// Funkcja zapisująca dane
+function saveData(){
+  const data=[];
+  for(let i=1;i<table.rows.length;i++){
+    const row=table.rows[i];
+    const name=row.cells[0].querySelector('input').value;
+    const attendance=[];
+    for(let j=2;j<row.cells.length;j++){ attendance.push(row.cells[j].textContent); }
+    data.push({name,attendance});
+  }
+  localStorage.setItem('attendanceData',JSON.stringify(data));
+}
+
+// Tworzenie 50 wierszy zawsze
+for(let i=0;i<maxPeople;i++){
+  const row=table.insertRow();
+  const nameCell=row.insertCell();
+  const input=document.createElement('input');
+  input.className='name';
+  input.placeholder='Imię i Nazwisko';
+  if(storedData[i] && storedData[i].name) input.value=storedData[i].name;
+  nameCell.appendChild(input);
+  input.addEventListener('input',()=>{saveData();});
+  const percentCell=row.insertCell(); percentCell.textContent='0%';
+}
+
+// Logowanie do edycji
+document.getElementById('loginBtn').addEventListener('click',()=>{
+  const pass=prompt("Podaj hasło do edycji:");
+  if(pass===password){
+    editMode=true;
+    alert("Tryb edycji aktywny.");
+    document.getElementById('addMeeting').disabled=false;
+    document.getElementById('exportCSV').disabled=false;
+  } else { alert("Błędne hasło!"); }
+});
+
+// Dodawanie spotkania
+document.getElementById('addMeeting').addEventListener('click',()=>{
+  if(!editMode) return;
+  const header=table.rows[0];
+  const idx=header.cells.length;
+  const th=document.createElement('th'); th.textContent='Spotkanie '+(idx-1); header.appendChild(th);
+  for(let i=1;i<table.rows.length;i++){
+    const row=table.rows[i];
+    const cell=row.insertCell();
+    cell.textContent='';
+    cell.className='clickable';
+    cell.addEventListener('click',()=>{
+      if(!editMode) return;
+      if(cell.textContent===''||cell.textContent==='N'){cell.textContent='O'; cell.className='O clickable';}
+      else{cell.textContent='N'; cell.className='N clickable';}
+      updateAttendance(row);
+      saveData();
+    });
+  }
+  saveData();
+});
+
+// Eksport CSV
+document.getElementById('exportCSV').addEventListener('click',()=>{
+  let csv=[];
+  const rows=table.querySelectorAll('tr');
+  rows.forEach(row=>{
+    const cols=row.querySelectorAll('th, td');
+    const rowData=[];
+    cols.forEach(col=>{
+      if(col.querySelector('input')) rowData.push(col.querySelector('input').value);
+      else rowData.push(col.textContent);
+    });
+    csv.push(rowData.join(';'));
+  });
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='dziennik_frekwencji.csv';
+  link.click();
+});
+</script>
+
+</body>
+</html>
